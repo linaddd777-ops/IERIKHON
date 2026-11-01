@@ -1,9 +1,9 @@
 <div align="center">
 
 # ⚡ IERIKHON
-### ИЕРИХОН · Remote Start Control
+### ИЕРИХОН · Android × ESP32 × Bluetooth LE
 
-**Исследовательская система управления на ESP32 и Android через Bluetooth Low Energy**
+**Открытая для изучения кодовая база экспериментального проекта управления релейным выходом**
 
 <p>
   <img alt="Android" src="https://img.shields.io/badge/ANDROID-1.5.7-3DDC84?style=for-the-badge&logo=android&logoColor=white">
@@ -17,10 +17,17 @@
   <img alt="License not selected" src="https://img.shields.io/badge/LICENSE-NOT_SELECTED-lightgrey?style=flat-square">
 </p>
 
+<p>
+  <a href="https://t.me/SDRX_GARAGE"><img alt="SDRX_GARAGE · Telegram" src="https://img.shields.io/badge/TELEGRAM-SDRX__GARAGE-26A5E4?style=for-the-badge&logo=telegram&logoColor=white"></a>
+</p>
+
+**[💬 Telegram-канал SDRX_GARAGE](https://t.me/SDRX_GARAGE)** · новости и идеи проекта
+
 [**📖 Для новичка**](docs/START-HERE.md) ·
 [**💻 Весь исходный код**](docs/SOURCE-MAP.md) ·
 [**🛠️ Настройка под себя**](docs/CUSTOMIZATION.md) ·
-[**🤖 Передать проект ИИ**](docs/AI-HANDOFF.md)
+[**🤖 Контекст для ИИ**](docs/AI-QUICK-CONTEXT.md) ·
+[**🔌 Схема и проверка**](docs/WIRING-SCHEME.md)
 
 </div>
 
@@ -51,6 +58,12 @@ flowchart LR
 | 🔌 ESP32 | **1.5.4** | Arduino C++ / ESP32 BLE | [Прошивка `.ino`](firmware/IERIKHON_v1.5.4/IERIKHON_v1.5.4.ino) |
 | 💻 Windows Flasher | **1.0.4** | Python / Tkinter / PyInstaller | [Исходники Python](pc-flasher/) |
 
+## 🗺 Как устроен проект — схема и материалы
+
+[**🔌 Блочная схема питания и реле, с разбором ошибок исходной иллюстрации**](docs/WIRING-SCHEME.md). Рисунок пользователя пока не загружен в GitHub; документ описывает его состав и критичные ограничения. Не используйте изображение как проверенную монтажную инструкцию.
+
+[**🤖 Документ для нейросетей**](docs/AI-QUICK-CONTEXT.md) — что за система, версии, ключевые файлы, правила изменения и готовое задание для ChatGPT/Qwen.
+
 ## 🚀 С чего начать?
 
 | Ваша задача | Открыть |
@@ -61,7 +74,9 @@ flowchart LR
 | **Хочу собрать свой APK** | [Сборка Android](docs/ANDROID-BUILD.md) |
 | **Хочу собрать Windows EXE** | [Сборка прошивальщика](docs/FLASHER-BUILD.md) |
 | **Хочу поменять внешний вид или имя устройства** | [Персонализация](docs/CUSTOMIZATION.md) |
-| **Хочу загрузить код в ChatGPT, Qwen или другой ИИ** | [Инструкция и готовый контекст](docs/AI-HANDOFF.md) |
+| **Хочу загрузить код в ChatGPT, Qwen или другой ИИ** | [Быстрый контекст для ИИ](docs/AI-QUICK-CONTEXT.md) · [Подробная инструкция](docs/AI-HANDOFF.md) |
+| **Хочу понять схему подключения и её ограничения** | [Описание схемы и проверка безопасности](docs/WIRING-SCHEME.md) |
+| **Хочу перейти в Telegram SDRX_GARAGE** | [Открыть канал](https://t.me/SDRX_GARAGE) |
 | **Хочу проверить оригинальность версий** | [Происхождение и SHA-256](docs/PROVENANCE.md) |
 | **Хочу предложить улучшение** | [Участие в разработке](docs/CONTRIBUTING.md) |
 
@@ -69,7 +84,7 @@ flowchart LR
 <summary><strong>📂 Посмотреть структуру проекта</strong></summary>
 
 ```text
-IERIKHON-ANDROID/
+IERIKHON/
 ├── app/                        # Android Java + Gradle + Manifest
 ├── firmware/                   # Исходники прошивок ESP32
 │   └── IERIKHON_v1.5.4/       # Парная версия для Android 1.5.7
@@ -78,7 +93,7 @@ IERIKHON-ANDROID/
 │   ├── v154_patch.py
 │   ├── soft_ui_patch.py
 │   └── v157_patch.py
-├── source-archive/v1.5.7/     # Точные копии исторических исходников
+├── source-archive/v1.5.7/     # Архив оригинальных исходников (Gradle подпись очищена)
 │   └── generated/android/     # Готовый Java 1.5.7 после всех патчей
 ├── scripts/                    # Экспортёр исходников без изменения оригиналов
 ├── docs/                       # Инструкции, безопасность, проверка
@@ -111,5 +126,5 @@ IERIKHON-ANDROID/
 ---
 
 <div align="center">
-  <sub>IERIKHON • SDRX · исходники сохранены; архивные версии не переписаны</sub>
+  <sub>IERIKHON • SDRX · <a href="https://t.me/SDRX_GARAGE">SDRX_GARAGE on Telegram</a> · исходники и документация</sub>
 </div>
