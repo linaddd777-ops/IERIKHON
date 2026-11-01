@@ -1,0 +1,1 @@
+46f31f817d8b472e77587665ae932a212450cfed647c296b1a6d0cf35193ce3f  source-archive/v1.5.7/generated/android/MainActivityV152.java

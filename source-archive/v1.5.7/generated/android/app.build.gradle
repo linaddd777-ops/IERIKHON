@@ -1,0 +1,51 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.sdrx.ierikhon'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.sdrx.ierikhon'
+        minSdk 23
+        targetSdk 35
+        versionCode 14
+        versionName '1.5.7'
+    }
+
+    signingConfigs {
+        ierikhonTest {
+            def keyFile = rootProject.file('ci/ierikhon-test.jks')
+            if (keyFile.exists()) {
+                storeFile keyFile
+                storePassword (System.getenv('IERIKHON_TEST_STORE_PASSWORD') ?: '')
+                keyAlias (System.getenv('IERIKHON_TEST_KEY_ALIAS') ?: '')
+                keyPassword (System.getenv('IERIKHON_TEST_KEY_PASSWORD') ?: '')
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            if (rootProject.file('ci/ierikhon-test.jks').exists()) {
+                signingConfig signingConfigs.ierikhonTest
+            }
+        }
+        release {
+            minifyEnabled false
+            if (rootProject.file('ci/ierikhon-test.jks').exists()) {
+                signingConfig signingConfigs.ierikhonTest
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError true
+    }
+}
