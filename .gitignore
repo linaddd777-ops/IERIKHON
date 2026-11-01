@@ -1,0 +1,12 @@
+.gradle/
+.idea/
+local.properties
+**/build/
+
+# Do not commit signing materials or local secrets
+*.jks
+*.keystore
+*.p12
+*.pfx
+.env
+.env.*

@@ -1,0 +1,146 @@
+name: Build IERIKHON Mobile Flasher
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "mobile-flasher/**"
+      - ".github/workflows/build-mobile-flasher.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout IERIKHON
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Download exact verified IERIKHON FW 1.5.4 image
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf build/exact-fw
+          mkdir -p build/exact-fw
+          gh run download 36693736447 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "IERIKHON-v1.5.7-ANDROID-FW1.5.4" \
+            --dir build/exact-fw
+          test -s build/exact-fw/IERIKHON-ESP32-v1.5.4-FULL.bin
+          cp build/exact-fw/IERIKHON-ESP32-v1.5.4-FULL.bin build/IERIKHON-ESP32-v1.5.4-FULL.bin
+          ACTUAL=$(sha256sum build/IERIKHON-ESP32-v1.5.4-FULL.bin | awk '{print $1}')
+          EXPECTED=d0dd34055b727e714d10f3ba011b30e1e2272ae53b21de19db60f3a8c20d9b0c
+          echo "Firmware SHA256: $ACTUAL"
+          test "$ACTUAL" = "$EXPECTED"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('build/IERIKHON-ESP32-v1.5.4-FULL.bin')
+          data = p.read_bytes()
+          assert len(data) == 4194304, len(data)
+          assert data[0x1000] == 0xE9
+          assert data[0x10000] == 0xE9
+          print('IERIKHON_FW154_EXACT_IMAGE=PASS')
+          PY
+
+      - name: Fetch pinned Android OTG flasher engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/esp-flash-android
+          git clone --quiet https://github.com/drakosha/esp-flash-android.git /tmp/esp-flash-android
+          cd /tmp/esp-flash-android
+          git checkout --quiet c4036ace9d2f5526e3535d1ac8bfb8ac3bafc23d
+          test "$(git rev-parse HEAD)" = "c4036ace9d2f5526e3535d1ac8bfb8ac3bafc23d"
+
+      - name: Bundle esptool-js
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/esp-flash-android
+          ESPTOOL_VERSION=0.6.0 bash scripts/bundle-esptool.sh
+          test -s app/src/main/assets/esptool.bundle.js
+
+      - name: Embed IERIKHON firmware and customize UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp build/IERIKHON-ESP32-v1.5.4-FULL.bin /tmp/esp-flash-android/app/src/main/assets/IERIKHON-ESP32-v1.5.4-FULL.bin
+          cat > /tmp/esp-flash-android/app/src/main/assets/firmware.json <<'JSON'
+          {
+            "name": "IERIKHON FLASHER",
+            "version": "FW 1.5.4 • ESP32 DevKit V1",
+            "parts": [
+              {
+                "file": "IERIKHON-ESP32-v1.5.4-FULL.bin",
+                "offset": "0x0"
+              }
+            ]
+          }
+          JSON
+          python3 mobile-flasher/patch_upstream.py
+          grep -q 'IERIKHON FLASHER' /tmp/esp-flash-android/app/src/main/assets/flash.html
+          grep -q 'manualBootNext' /tmp/esp-flash-android/app/src/main/assets/flash.html
+          grep -q "connectLoader('default_reset', 4)" /tmp/esp-flash-android/app/src/main/assets/flash.html
+          grep -q "connectLoader('no_reset', 3)" /tmp/esp-flash-android/app/src/main/assets/flash.html
+          grep -q "usb-serial-for-android:3.7.3" /tmp/esp-flash-android/app/build.gradle
+          ! grep -q "applicationIdSuffix '.debug'" /tmp/esp-flash-android/app/build.gradle
+
+      - name: Build installable Android flasher APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/esp-flash-android
+          chmod +x gradlew
+          ./gradlew assembleDebug \
+            -PappId=com.sdrx.ierikhon.flasher \
+            -PversionName=1.0.0 \
+            -PversionCode=100 \
+            -PappLabel='IERIKHON FLASHER' \
+            --stacktrace
+          test -s app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Audit final APK contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=/tmp/esp-flash-android/app/build/outputs/apk/debug/app-debug.apk
+          unzip -l "$APK" | grep -q 'assets/IERIKHON-ESP32-v1.5.4-FULL.bin'
+          unzip -l "$APK" | grep -q 'assets/firmware.json'
+          unzip -l "$APK" | grep -q 'assets/esptool.bundle.js'
+          unzip -l "$APK" | grep -q 'assets/flash.html'
+          rm -rf /tmp/apk-audit
+          mkdir -p /tmp/apk-audit
+          unzip -q "$APK" assets/IERIKHON-ESP32-v1.5.4-FULL.bin -d /tmp/apk-audit
+          EMBEDDED=$(sha256sum /tmp/apk-audit/assets/IERIKHON-ESP32-v1.5.4-FULL.bin | awk '{print $1}')
+          EXPECTED=d0dd34055b727e714d10f3ba011b30e1e2272ae53b21de19db60f3a8c20d9b0c
+          echo "Embedded firmware SHA256: $EMBEDDED"
+          test "$EMBEDDED" = "$EXPECTED"
+          cp "$APK" IERIKHON-MOBILE-FLASHER-v1.0.0.apk
+          sha256sum IERIKHON-MOBILE-FLASHER-v1.0.0.apk > IERIKHON-MOBILE-FLASHER-v1.0.0.apk.sha256
+          test -s IERIKHON-MOBILE-FLASHER-v1.0.0.apk
+          cat IERIKHON-MOBILE-FLASHER-v1.0.0.apk.sha256
+
+      - name: Upload mobile flasher
+        uses: actions/upload-artifact@v4
+        with:
+          name: IERIKHON-MOBILE-FLASHER-v1.0.0-FW1.5.4
+          path: |
+            IERIKHON-MOBILE-FLASHER-v1.0.0.apk
+            IERIKHON-MOBILE-FLASHER-v1.0.0.apk.sha256
+          if-no-files-found: error

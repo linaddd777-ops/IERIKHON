@@ -1,0 +1,110 @@
+# clean paired rebuild: APP 1.5.7 + FW 1.5.4
+name: Build IERIKHON Windows Flasher
+
+on:
+  workflow_run:
+    workflows: ["Build IERIKHON Android + PC ESP32"]
+    types: [completed]
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "pc-flasher/**"
+      - ".github/workflows/build-windows-flasher.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-windows-flasher:
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve verified paired firmware run
+        id: fwrun
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ('${{ github.event_name }}' -eq 'workflow_run') {
+            $runId = '${{ github.event.workflow_run.id }}'
+          } else {
+            $runId = gh run list --repo $env:GITHUB_REPOSITORY --workflow build-apk.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId'
+          }
+          if (-not $runId) { throw 'No successful paired firmware workflow run found' }
+          "run_id=$runId" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Using firmware run $runId"
+
+      - name: Download verified paired firmware artifact
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path input | Out-Null
+          gh run download '${{ steps.fwrun.outputs.run_id }}' --repo $env:GITHUB_REPOSITORY --name "IERIKHON-v1.5.7-ANDROID-FW1.5.4" --dir input
+          $bin = Get-ChildItem input -Recurse -Filter 'IERIKHON-ESP32-v1.5.4-FULL.bin' | Select-Object -First 1
+          if (-not $bin) { throw 'Verified firmware BIN not found in artifact' }
+          Copy-Item $bin.FullName pc-flasher\IERIKHON-ESP32-v1.5.4-FULL.bin
+
+      - name: Verify merged firmware
+        shell: pwsh
+        run: |
+          $p = 'pc-flasher\IERIKHON-ESP32-v1.5.4-FULL.bin'
+          $bytes = [System.IO.File]::ReadAllBytes($p)
+          if ($bytes.Length -lt 0x11000) { throw 'Merged image too small' }
+          if ($bytes[0x1000] -ne 0xE9) { throw 'Bootloader header missing' }
+          if ($bytes[0x10000] -ne 0xE9) { throw 'Application header missing' }
+          Write-Host "Firmware verified: $($bytes.Length) bytes"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install flasher build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "esptool==4.8.1" "pyserial==3.5" "pyinstaller==6.16.0"
+
+      - name: Validate flasher source
+        shell: pwsh
+        run: |
+          python -m py_compile pc-flasher\ierikhon_flasher.py pc-flasher\ierikhon_flasher_v104.py
+          Select-String -Path pc-flasher\ierikhon_flasher_v104.py -Pattern 'APP_VERSION = "1.0.4"' -Quiet | ForEach-Object { if (-not $_) { throw 'Wrong flasher version' } }
+          Select-String -Path pc-flasher\ierikhon_flasher_v104.py -Pattern 'FW_VERSION = "1.5.4"' -Quiet | ForEach-Object { if (-not $_) { throw 'Wrong firmware version' } }
+          Select-String -Path pc-flasher\ierikhon_flasher.py -Pattern 'default_reset' -Quiet | ForEach-Object { if (-not $_) { throw 'Auto reset missing' } }
+          Select-String -Path pc-flasher\ierikhon_flasher.py -Pattern 'connect-attempts' -Quiet | ForEach-Object { if (-not $_) { throw 'Connection retries missing' } }
+
+      - name: Build single EXE
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed `
+            --name "IERIKHON-FLASHER-v1.0.4" `
+            --paths "pc-flasher" `
+            --collect-all esptool `
+            --collect-all serial `
+            --add-data "pc-flasher\IERIKHON-ESP32-v1.5.4-FULL.bin;." `
+            pc-flasher\ierikhon_flasher_v104.py
+          if (-not (Test-Path 'dist\IERIKHON-FLASHER-v1.0.4.exe')) { throw 'EXE not produced' }
+
+      - name: Hash EXE
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash 'dist\IERIKHON-FLASHER-v1.0.4.exe' -Algorithm SHA256).Hash.ToLower()
+          "$h  IERIKHON-FLASHER-v1.0.4.exe" | Set-Content -Encoding ascii 'dist\IERIKHON-FLASHER-v1.0.4.exe.sha256'
+          Get-Item 'dist\IERIKHON-FLASHER-v1.0.4.exe' | Format-List Name,Length
+          Get-Content 'dist\IERIKHON-FLASHER-v1.0.4.exe.sha256'
+
+      - name: Upload Windows flasher
+        uses: actions/upload-artifact@v4
+        with:
+          name: IERIKHON-WINDOWS-FLASHER-v1.0.4
+          path: |
+            dist/IERIKHON-FLASHER-v1.0.4.exe
+            dist/IERIKHON-FLASHER-v1.0.4.exe.sha256
+          if-no-files-found: error

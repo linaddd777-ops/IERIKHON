@@ -1,0 +1,44 @@
+name: Verify archival Android v1.5.7 source export
+
+on:
+  push:
+    branches: ["publication/ierikhon-v1.5.7-flasher-v1.0.4"]
+    paths:
+      - "scripts/export_v157_snapshot.py"
+      - ".github/workflows/verify-v157-export.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout without modifying originals
+        uses: actions/checkout@v4
+      - name: Validate Python exporter syntax
+        run: python3 -m py_compile scripts/export_v157_snapshot.py
+      - name: Generate Android 1.5.7 editable snapshot
+        run: python3 scripts/export_v157_snapshot.py
+      - name: Verify sources and versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="dist/ierikhon-v1.5.7-source"
+          JAVA="$ROOT/android/app/src/main/java/com/sdrx/ierikhon/MainActivityV152.java"
+          test -s "$JAVA"
+          grep -Fq 'APP_VERSION = "1.5.7"' "$JAVA"
+          grep -Fq 'FW_VERSION = "1.5.4"' "$JAVA"
+          grep -Fq "versionName '1.5.7'" "$ROOT/android/app/build.gradle"
+          test -s "$ROOT/pc-flasher/ierikhon_flasher.py"
+          test -s "$ROOT/pc-flasher/ierikhon_flasher_v104.py"
+          test -s "$ROOT/firmware/IERIKHON_v1.5.4/IERIKHON_v1.5.4.ino"
+          git diff --exit-code
+          git status --short
+      - name: Package snapshot for review (not a binary release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: IERIKHON-v1.5.7-EDITABLE-SOURCE-EXPORT
+          path: dist/ierikhon-v1.5.7-source/
+          if-no-files-found: error

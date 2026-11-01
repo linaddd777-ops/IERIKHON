@@ -1,0 +1,126 @@
+name: Build IERIKHON Android + PC ESP32
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Apply IERIKHON v1.5.8 compatibility patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/v158_patch.py
+
+      - name: Static Android + existing firmware compatibility audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP=app/src/main/java/com/sdrx/ierikhon/MainActivityV152.java
+          MANIFEST=app/src/main/AndroidManifest.xml
+          GRADLE=app/build.gradle
+          FW=firmware/IERIKHON_v1.5.4/IERIKHON_v1.5.4.ino
+
+          for FILE in "$APP" "$MANIFEST" "$GRADLE" "$FW"; do test -f "$FILE"; done
+
+          grep -q 'android:name=".MainActivityV152"' "$MANIFEST"
+          grep -q "versionName '1.5.8'" "$GRADLE"
+          grep -q 'APP_VERSION = "1.5.8"' "$APP"
+          grep -q 'FW_VERSION = "1.5.4"' "$APP"
+          grep -q 'normalizeCompatReply(text)' "$APP"
+          grep -q 'compat expanded truncated reply' "$APP"
+          grep -q 'expectedStart.startsWith(text)' "$APP"
+          grep -q 'expectedRelayOff.startsWith(text)' "$APP"
+          grep -q 'START_COMMAND_OK:GPIO25:' "$APP"
+          grep -q 'RELAY_OFF:GPIO25:' "$APP"
+          grep -q 'ERROR_GATT_WRITE_REQUEST_BUSY' "$APP"
+          grep -q 'GATT busy retry=' "$APP"
+          grep -q 'canRead = false' "$APP"
+          grep -q 'start.setText("ЗАВЕСТИ")' "$APP"
+          grep -q 'Color.rgb(215, 43, 74)' "$APP"
+          grep -q 'pulseSyncDebounce' "$APP"
+          grep -q 'postDelayed(pulseSyncDebounce, 380)' "$APP"
+          grep -q 'SET_PULSE:' "$APP"
+          grep -q 'PULSE_OK:' "$APP"
+          grep -q 'PULSE_MIN_MS = 500' "$APP"
+          grep -q 'PULSE_MAX_MS = 3000' "$APP"
+          ! grep -q 'EXPECTED_PONG' "$APP"
+          ! grep -q 'firmwareTimeout' "$APP"
+          ! grep -q 'queueWrite("PING")' "$APP"
+          ! grep -q 'Проверяю версию ESP32' "$APP"
+
+          # Existing FW 1.5.4 remains unchanged and is the compatibility target.
+          grep -q 'FW_VERSION = "1.5.4"' "$FW"
+          grep -q 'DEVICE_NAME = "IERIKHON-01"' "$FW"
+          grep -q 'SERVICE_UUID = "6f4f0001-8f3a-4d7a-9c12-4a494552494b"' "$FW"
+          grep -q 'COMMAND_UUID = "6f4f0002-8f3a-4d7a-9c12-4a494552494b"' "$FW"
+          grep -q 'BLECharacteristic::PROPERTY_WRITE |' "$FW"
+          grep -q 'BLECharacteristic::PROPERTY_NOTIFY' "$FW"
+          grep -q 'START_COMMAND_OK:GPIO25:' "$FW"
+          grep -q 'RELAY_OFF:GPIO25:' "$FW"
+          grep -q 'MIN_RELAY_PULSE_MS = 500' "$FW"
+          grep -q 'MAX_RELAY_PULSE_MS = 3000' "$FW"
+          grep -q 'RELAY_PIN = 25' "$FW"
+
+      - name: Build Android APK
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Android Lint
+        run: gradle :app:lintDebug --stacktrace
+
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ESP32 Arduino core
+        shell: bash
+        run: |
+          set -euo pipefail
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+
+      - name: Compatibility compile existing FW 1.5.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build/esp32
+          mkdir -p build/esp32
+          arduino-cli compile \
+            --fqbn esp32:esp32:esp32 \
+            --build-path build/esp32 \
+            firmware/IERIKHON_v1.5.4
+
+      - name: Package Android APK only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp app/build/outputs/apk/debug/app-debug.apk IERIKHON-v1.5.8.apk
+          sha256sum IERIKHON-v1.5.8.apk > IERIKHON-v1.5.8.apk.sha256
+          test -s IERIKHON-v1.5.8.apk
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: IERIKHON-v1.5.8-ANDROID-FW1.5.4-COMPAT
+          path: |
+            IERIKHON-v1.5.8.apk
+            IERIKHON-v1.5.8.apk.sha256
+          if-no-files-found: error

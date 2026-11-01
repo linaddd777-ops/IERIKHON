@@ -1,0 +1,54 @@
+name: Publish exact generated Android v1.5.7 source (archive branch only)
+
+on:
+  push:
+    branches: ["publication/ierikhon-v1.5.7-flasher-v1.0.4"]
+    paths:
+      - ".github/workflows/publish-v157-source.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out archival branch
+        uses: actions/checkout@v4
+        with:
+          ref: publication/ierikhon-v1.5.7-flasher-v1.0.4
+      - name: Confirm expected branch
+        run: test "${GITHUB_REF_NAME}" = "publication/ierikhon-v1.5.7-flasher-v1.0.4"
+      - name: Export from original source and patches
+        run: python3 scripts/export_v157_snapshot.py
+      - name: Save generated source without touching originals
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="source-archive/v1.5.7/generated/android"
+          mkdir -p "$dir"
+          cp "dist/ierikhon-v1.5.7-source/android/app/src/main/java/com/sdrx/ierikhon/MainActivityV152.java" "$dir/MainActivityV152.java"
+          cp "dist/ierikhon-v1.5.7-source/android/app/build.gradle" "$dir/app.build.gradle"
+          sha256sum "$dir/MainActivityV152.java" > "source-archive/v1.5.7/generated/Java-SHA256.txt"
+          cat > "source-archive/v1.5.7/generated/README.md" <<'EOF'
+          # IERIKHON Android v1.5.7 — assembled editable Java source
+
+          These files are generated from the historical original Java base by:
+          `tools/v157_patch.py` → `tools/soft_ui_patch.py` → `tools/v154_patch.py` (invocation order).
+
+          - `android/MainActivityV152.java`: **fully patched v1.5.7 Java source**.
+          - `android/app.build.gradle`: Android build config copy with versionName 1.5.7.
+          - `Java-SHA256.txt`: SHA-256 of the generated Java source.
+
+          This is a generated artifact separate from all original source files. It has not been proven binary identical to the historically uploaded APK. Please check docs/PROVENANCE.md before making release claims. Do not use the old ESP32 firmware on an active motorcycle without independent starter interlocks and authentication.
+          EOF
+          git diff --exit-code
+          git add source-archive/v1.5.7/generated/
+          if git diff --cached --quiet; then
+            echo "No generated changes"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "archive: add exactly generated v1.5.7 editable Java source"
+            git push origin HEAD:publication/ierikhon-v1.5.7-flasher-v1.0.4
+          fi
