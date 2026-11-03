@@ -73,6 +73,7 @@ flowchart LR
 | **Нужна именно Java-версия 1.5.7** | [Готовый объединённый исходник](source-archive/v1.5.7/generated/android/MainActivityV152.java) |
 | **Хочу собрать свой APK** | [Сборка Android](docs/ANDROID-BUILD.md) |
 | **Хочу собрать Windows EXE** | [Сборка прошивальщика](docs/FLASHER-BUILD.md) |
+| **Хочу прошить ESP32 с Android через USB-OTG** | [Мобильный прошивальщик v1.0.1](mobile-flasher/README.md) · [результаты аудита](docs/MOBILE-FLASHER-AUDIT.md) |
 | **Хочу поменять внешний вид или имя устройства** | [Персонализация](docs/CUSTOMIZATION.md) |
 | **Хочу загрузить код в ChatGPT, Qwen или другой ИИ** | [Быстрый контекст для ИИ](docs/AI-QUICK-CONTEXT.md) · [Подробная инструкция](docs/AI-HANDOFF.md) |
 | **Хочу понять схему подключения и её ограничения** | [Описание схемы и проверка безопасности](docs/WIRING-SCHEME.md) |
